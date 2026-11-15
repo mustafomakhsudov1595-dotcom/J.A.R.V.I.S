@@ -37,7 +37,20 @@ To'liq texnik hujjat (ingliz tilida): [README.en.md](README.en.md).
 
 ---
 
-## Noutbukda ishga tushirish
+## Eng oson yo'l
+
+1. Repo sahifasida **Code → Download ZIP** ni bosing va arxivni oching.
+2. **Windows:** `JARVIS.bat` ni ikki marta bosing. **macOS / Linux:** terminalda
+   `./jarvis.sh`.
+3. Birinchi safar u Claude Code va kutubxonalarni o'zi o'rnatadi, Claude
+   hisobingizga kirishni so'raydi, keyin rejimni tanlaysiz: faqat noutbuk yoki
+   noutbuk + telefon.
+
+Node.js o'rnatilmagan bo'lsa, skript yuklab olish sahifasini ochib beradi.
+
+---
+
+## Noutbukda ishga tushirish (qo'lda)
 
 ```bash
 git clone https://github.com/mustafomakhsudov1595-dotcom/J.A.R.V.I.S.git
