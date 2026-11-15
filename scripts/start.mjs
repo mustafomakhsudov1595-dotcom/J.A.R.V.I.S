@@ -13,6 +13,7 @@
 import { spawn } from 'node:child_process'
 import process from 'node:process'
 import { cpSync, existsSync, mkdirSync } from 'node:fs'
+import { lanAddresses, loadKey } from './phone-gate.mjs'
 
 /**
  * Put MediaPipe's WebAssembly where the page can actually load it.
@@ -45,6 +46,9 @@ function vendorWasm() {
 }
 
 const writes = process.argv.includes('--writes')
+// --phone serves the face over HTTPS on the local network, behind an access
+// key, so a phone on the same Wi-Fi can open it. See scripts/phone-gate.mjs.
+const phone = process.argv.includes('--phone')
 
 // A dim label per process, so the interleaved logs stay readable.
 const paint = (tag, colour) => (line) =>
@@ -111,15 +115,55 @@ if (port) {
   console.log(`  serving the face on port ${port}; the bridge will accept it.\n`)
 }
 
+const faceEnv = {}
+let phoneKey = ''
+if (phone) {
+  phoneKey = loadKey()
+  // The bridge stays on 127.0.0.1; JARVIS_PHONE only lets it trust the
+  // proxy's note about which address the phone reached it at.
+  bridgeEnv.JARVIS_PHONE = '1'
+  faceEnv.JARVIS_PHONE = '1'
+  faceEnv.JARVIS_PHONE_KEY = phoneKey
+}
+
 vendorWasm()
 
 console.log('\nJ.A.R.V.I.S. starting — the brain and the face.\n')
 run('bridge', 'node', ['bridge/server.mjs'], '36', bridgeEnv)
 // npm is a shell script on most systems; call the vite binary directly so we do
 // not need shell:true (which would break the argument handling above).
-run('face', process.execPath, ['node_modules/vite/bin/vite.js'], '35', {})
+run('face', process.execPath, ['node_modules/vite/bin/vite.js'], '35', faceEnv)
 
-console.log(
-  '\nWhen it says the dev server is ready, open the URL it prints in Chrome,\n' +
-    'click INITIALISE, and say "Hey Jarvis". Ctrl-C stops everything.\n',
-)
+if (phone) {
+  const facePort = port || 5173
+  const link = (host) => `https://${host}:${facePort}/?key=${phoneKey}`
+  const addresses = lanAddresses()
+  console.log('\n\x1b[1mPhone mode / Telefon rejimi\x1b[0m')
+  console.log(`\n  Noutbukda (on this laptop):\n    ${link('localhost')}`)
+  if (addresses.length === 0) {
+    console.log('\n  No network address found — connect this laptop to Wi-Fi first.')
+  } else {
+    console.log('\n  Telefonda (on your phone, same Wi-Fi):')
+    for (const a of addresses) console.log(`    ${link(a)}`)
+    try {
+      const { default: qrcode } = await import('qrcode-terminal')
+      console.log('\n  Telefon kamerasi bilan skanerlang (scan with the phone camera):\n')
+      qrcode.generate(link(addresses[0]), { small: true }, (code) =>
+        console.log(code.replace(/^/gm, '    ')),
+      )
+    } catch {
+      /* no QR package: the link above is enough */
+    }
+  }
+  console.log(
+    '\n  The browser will warn about the certificate once — it is this laptop\'s\n' +
+      '  own self-signed one. Choose Advanced → Proceed. The link holds the access\n' +
+      '  key: anyone who has it can talk to your JARVIS, so do not share it.\n' +
+      '  Ctrl-C stops everything.\n',
+  )
+} else {
+  console.log(
+    '\nWhen it says the dev server is ready, open the URL it prints in Chrome,\n' +
+      'click INITIALISE, and say "Hey Jarvis". Ctrl-C stops everything.\n',
+  )
+}

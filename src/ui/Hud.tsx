@@ -6,6 +6,7 @@ import { BladeSweep, Blades } from './Blades'
 import { Effects } from './Effects'
 import { Pointer } from './Pointer'
 import { GestureGuide } from './GestureGuide'
+import { TouchDock } from './TouchDock'
 
 const statusText: Record<Phase, string> = {
   offline: 'OFFLINE',
@@ -321,6 +322,8 @@ export function Hud() {
           )}
         </span>
       </footer>
+
+      <TouchDock />
 
       {/* Last, so a flash or a tear reads as being on the glass rather than
           underneath the chrome. It is pointer-events: none and unmounts the

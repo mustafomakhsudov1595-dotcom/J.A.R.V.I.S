@@ -712,6 +712,26 @@ function corsFor(req) {
   return headers
 }
 
+/**
+ * The address the browser reaches this bridge at, for links baked into a
+ * rendered reader page.
+ *
+ * Normally that is localhost. In phone mode (`npm run phone`) the page is on a
+ * phone, where localhost is the phone, so the launcher's proxy forwards the
+ * address it was reached at and a media-only key for the images inside the
+ * sandboxed reader frame. Both headers are honoured only when the launcher
+ * set JARVIS_PHONE, and only in a shape that cannot break out of an attribute.
+ */
+function publicBase(req) {
+  const local = [`http://localhost:${PORT}`, '']
+  if (process.env.JARVIS_PHONE !== '1') return local
+  const base = String(req.headers['x-jarvis-public-base'] ?? '')
+  const key = String(req.headers['x-jarvis-media-key'] ?? '')
+  if (!/^https:\/\/[a-z0-9.\-[\]:]+\/bridge$/i.test(base)) return local
+  if (!/^[a-f0-9]{32,64}$/.test(key)) return local
+  return [base, `mk=${key}&`]
+}
+
 // One HTTP server for both the speech proxy and the WebSocket upgrade.
 const http = await import('node:http')
 
@@ -839,7 +859,7 @@ const handleRequest = async (req, res) => {
     const target = asked.searchParams.get('url') ?? ''
     const mode = asked.searchParams.get('mode') === 'live' ? 'live' : 'reader'
     try {
-      const page = await renderPage(target, mode, `http://localhost:${PORT}`)
+      const page = await renderPage(target, mode, ...publicBase(req))
       res.writeHead(200, { ...cors, ...page.headers })
       return res.end(page.body)
     } catch (err) {

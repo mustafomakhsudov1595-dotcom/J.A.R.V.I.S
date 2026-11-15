@@ -71,7 +71,20 @@ export const BACKEND: 'bridge' | 'direct' = choice(
  * `wss://` maps to `https://` on its own, which is why this is a prefix swap
  * rather than a hardcoded scheme.
  */
-export const BRIDGE_WS_URL = str(import.meta.env.VITE_BRIDGE_URL) ?? 'ws://localhost:8787'
+/**
+ * Phone mode (`npm run phone`) serves the face over HTTPS on the local network
+ * and puts the bridge behind the same origin at `/bridge`, with the access key
+ * checked in front of it (see scripts/phone-gate.mjs). An HTTPS page is the
+ * signal: it cannot open `ws://localhost:8787` from a phone at all, and on the
+ * laptop the bridge would refuse its https origin, so both go through the proxy.
+ */
+const SAME_ORIGIN_BRIDGE =
+  typeof location !== 'undefined' && location.protocol === 'https:'
+    ? `wss://${location.host}/bridge`
+    : undefined
+
+export const BRIDGE_WS_URL =
+  str(import.meta.env.VITE_BRIDGE_URL) ?? SAME_ORIGIN_BRIDGE ?? 'ws://localhost:8787'
 export const BRIDGE_HTTP_URL = BRIDGE_WS_URL.replace(/^ws/, 'http')
 
 /**
