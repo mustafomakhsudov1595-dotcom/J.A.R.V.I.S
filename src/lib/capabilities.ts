@@ -28,6 +28,15 @@ export type Capabilities = {
 let current: Capabilities = { stt: false, tts: false }
 let probed = false
 
+/**
+ * The language the bridge is configured for (JARVIS_LANGUAGE). The browser's
+ * own recogniser has to be told which language to hear, and the canned lines
+ * — the fillers, the "yes, sir?" — have to match the one he answers in.
+ */
+let language = 'uz'
+export const lang = (): string => language
+export const isUzbek = (): boolean => language === 'uz'
+
 /** The last known capabilities. Read synchronously by the voice and speech
  *  layers; accurate once `probeCapabilities` has resolved during boot. */
 export function caps(): Capabilities {
@@ -56,8 +65,9 @@ export async function probeCapabilities(): Promise<Capabilities> {
       signal: AbortSignal.timeout(3000),
     })
     if (res.ok) {
-      const h = (await res.json()) as { stt?: boolean; tts?: boolean }
+      const h = (await res.json()) as { stt?: boolean; tts?: boolean; lang?: string }
       current = { stt: Boolean(h.stt), tts: Boolean(h.tts) }
+      if (typeof h.lang === 'string' && h.lang) language = h.lang
     }
   } catch {
     // Bridge down or slow — stay on the browser engines rather than blocking

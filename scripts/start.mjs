@@ -12,7 +12,8 @@
 
 import { spawn } from 'node:child_process'
 import process from 'node:process'
-import { cpSync, existsSync, mkdirSync } from 'node:fs'
+import { appendFileSync, cpSync, existsSync, mkdirSync, readFileSync } from 'node:fs'
+import { createInterface } from 'node:readline/promises'
 import { lanAddresses, loadKey } from './phone-gate.mjs'
 
 /**
@@ -114,6 +115,51 @@ if (port) {
   bridgeEnv.JARVIS_ALLOWED_ORIGINS = `http://localhost:${port},http://127.0.0.1:${port}`
   console.log(`  serving the face on port ${port}; the bridge will accept it.\n`)
 }
+
+/**
+ * Ask for the ElevenLabs key once, and keep it in .env.local.
+ *
+ * The key is what gives JARVIS his own voice and Uzbek hearing; without it he
+ * falls back to the browser's speech. It cannot ship in the repository — a key
+ * in git is a key anyone can spend — so the first run asks for it and writes it
+ * to a git-ignored file that the bridge reads on every start. An empty answer
+ * is remembered too, so the question is asked exactly once. To change it
+ * later, edit or delete the ELEVENLABS_API_KEY line in .env.local.
+ */
+async function askForVoiceKey() {
+  if (process.env.ELEVENLABS_API_KEY) return
+  let saved = ''
+  try {
+    saved = readFileSync('.env.local', 'utf8')
+  } catch {
+    /* no file yet */
+  }
+  if (/^\s*ELEVENLABS_API_KEY\s*=/m.test(saved)) return
+  if (!process.stdin.isTTY) return
+
+  console.log(
+    '\nOvoz sozlamasi (bir marta soʻraladi)\n' +
+      '  JARVIS oʻz ovozida va oʻzbekcha gapirishi uchun ElevenLabs API kaliti kerak.\n' +
+      '  Kalit faqat shu kompyuterdagi .env.local faylida saqlanadi.\n' +
+      '  Kalit boʻlmasa, shunchaki Enter bosing — brauzer ovozi ishlatiladi.\n',
+  )
+  const rl = createInterface({ input: process.stdin, output: process.stdout })
+  const answer = (await rl.question('  ElevenLabs API kaliti (sk_...): ')).trim()
+  rl.close()
+  if (answer && !/^[A-Za-z0-9_-]{20,200}$/.test(answer)) {
+    console.log('  Bu kalitga oʻxshamadi — oʻtkazib yuborildi. Keyingi safar yana soʻraladi.\n')
+    return
+  }
+  try {
+    const lead = saved && !saved.endsWith('\n') ? '\n' : ''
+    appendFileSync('.env.local', `${lead}ELEVENLABS_API_KEY=${answer}\n`, { mode: 0o600 })
+    console.log(answer ? '  Saqlandi.\n' : '  Oʻtkazib yuborildi.\n')
+  } catch (err) {
+    console.warn(`  .env.local ga yozib boʻlmadi: ${err.message}\n`)
+  }
+}
+
+await askForVoiceKey()
 
 const faceEnv = {}
 let phoneKey = ''

@@ -22,7 +22,7 @@ import { uiServer } from './ui.mjs'
 import { chromeAvailable, chromeServer } from './chrome.mjs'
 import { visionServer } from './vision.mjs'
 import { homedir, tmpdir } from 'node:os'
-import { mkdirSync, readFileSync, realpathSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, realpathSync } from 'node:fs'
 import { readFile, realpath, stat } from 'node:fs/promises'
 import { isAbsolute, join, relative, resolve as resolvePath } from 'node:path'
 import { openRemote, proxyError, vetTarget, PROXY_UA } from './net.mjs'
@@ -35,7 +35,26 @@ import {
   fileRoots,
 } from './policy.mjs'
 
+/**
+ * Settings from .env.local, so the bridge can be configured from a file as
+ * well as from the shell — a double-clicked launcher has no shell to export
+ * into. The file is git-ignored, which is what makes it the right home for the
+ * ElevenLabs key. Values already in the environment win.
+ */
+try {
+  if (existsSync('.env.local')) process.loadEnvFile?.('.env.local')
+} catch (err) {
+  console.warn(`[jarvis] could not read .env.local: ${err.message}`)
+}
+
 const PORT = Number(process.env.JARVIS_BRIDGE_PORT ?? 8787)
+
+/**
+ * The language JARVIS speaks and listens in. This build defaults to Uzbek;
+ * set JARVIS_LANGUAGE=en for the original English character.
+ */
+const LANGUAGE = (process.env.JARVIS_LANGUAGE?.trim() || 'uz').toLowerCase()
+const UZBEK = LANGUAGE === 'uz'
 
 /**
  * Which interface to listen on. Loopback, unless you say otherwise.
@@ -481,6 +500,31 @@ const PROMPT_TOOLS = `Using tools:
 - If a tool fails or isn't connected, one plain sentence saying so.
 - If you don't know, say you don't know.`
 
+/**
+ * Last in the prompt on purpose: every section above is written in English and
+ * full of English example lines, and the rule that overrides their language
+ * has to be the final thing read.
+ */
+const PROMPT_UZBEK = `
+
+LANGUAGE — THIS OVERRIDES EVERY EXAMPLE ABOVE.
+You speak Uzbek, and only Uzbek, whatever language the question arrives in —
+English, Russian, or anything else. Every word you say aloud is Uzbek in the
+Latin alphabet (oʻzbek lotin yozuvi), never Cyrillic. Everything you put on
+screen — panel titles, labels, captions, notes — is Uzbek too. Proper names,
+brand names and code stay as they are.
+- The example lines above show the character's manner, not his words. Keep the
+  manner — dry, brief, exact — and say it in natural Uzbek, not a word-for-word
+  translation.
+- "Sir" is "janob", and the same positional rules apply to it.
+- Address the user as "siz", never "sen".
+- Write numbers, dates, times and units out as Uzbek words, the way they are
+  said: "sakkizdan oʻn besh daqiqa oʻtdi", "birinchi avgust", not "8:15".
+- If asked to speak another language, say in one Uzbek sentence that you answer
+  in Uzbek, and carry on.
+- A transcript of the user's speech may be garbled or partly in another script.
+  Work out what was meant and answer in Uzbek.`
+
 const SYSTEM_PROMPT = [
   PROMPT_CORE,
   PROMPT_BLADES,
@@ -488,6 +532,7 @@ const SYSTEM_PROMPT = [
   DISABLED.has('browser') ? '' : PROMPT_BROWSER,
   DISABLED.has('camera') ? '' : PROMPT_EYES,
   PROMPT_TOOLS,
+  UZBEK ? PROMPT_UZBEK : '',
 ].join('')
 
 /**
@@ -509,7 +554,48 @@ function elevenKey() {
   }
 }
 
-const VOICE_ID = process.env.JARVIS_VOICE_ID ?? 'JBFqnCBsd6RMkjVDRZzb'
+// Blank counts as unset, as everywhere else: .env files ship keys empty.
+const VOICE_ID = process.env.JARVIS_VOICE_ID?.trim() || 'RaNVfTYq3HYeFPLng6XN'
+
+/**
+ * Which ElevenLabs model reads the lines.
+ *
+ * Flash is the fast one and the original default, but its language list has
+ * no Uzbek in it: it reads Uzbek text with whatever accent it guesses. Eleven
+ * v3 covers far more languages, at the cost of a slower first byte. So Uzbek
+ * asks for v3 first, and falls back to Flash if the account or the voice
+ * cannot use it — a voice with an accent beats no voice. JARVIS_TTS_MODEL
+ * overrides the first choice.
+ */
+const FLASH = 'eleven_flash_v2_5'
+const TTS_MODEL = process.env.JARVIS_TTS_MODEL?.trim() || (UZBEK ? 'eleven_v3' : FLASH)
+
+function speechRequest(model, text, key) {
+  const fast = /flash|turbo/.test(model)
+  const v3 = /v3/.test(model)
+  return fetch(
+    `https://api.elevenlabs.io/v1/text-to-speech/${VOICE_ID}/stream` +
+      // 22kHz mono is half the bytes of 44kHz and indistinguishable through
+      // a laptop speaker; optimize_streaming_latency=3 trades a little
+      // prosody for a much earlier first byte, on the models that take it.
+      `?output_format=mp3_22050_32${fast ? '&optimize_streaming_latency=3' : ''}`,
+    {
+      method: 'POST',
+      headers: { 'xi-api-key': key, 'content-type': 'application/json' },
+      body: JSON.stringify({
+        text,
+        model_id: model,
+        // v3 accepts only three stability steps and has no speed control.
+        voice_settings: v3
+          ? { stability: 0.5, similarity_boost: 0.75 }
+          : { stability: 0.4, similarity_boost: 0.75, speed: 1.05 },
+      }),
+    },
+  )
+}
+
+/** Set once the first choice has been refused, so it is not retried per line. */
+let ttsModel = TTS_MODEL
 
 /**
  * Where /file is permitted to read from, and how big a read may get.
@@ -762,7 +848,7 @@ const handleRequest = async (req, res) => {
     // student with nothing configured still has a working assistant.
     const eleven = Boolean(elevenKey())
     res.writeHead(200, { ...cors, 'content-type': 'application/json' })
-    return res.end(JSON.stringify({ ok: true, tts: eleven, stt: eleven }))
+    return res.end(JSON.stringify({ ok: true, tts: eleven, stt: eleven, lang: LANGUAGE }))
   }
 
   // Serve local image files to the page. Screenshots and generated art land on
@@ -920,28 +1006,15 @@ const handleRequest = async (req, res) => {
       return res.end('no text')
     }
     try {
-      const upstream = await fetch(
-        `https://api.elevenlabs.io/v1/text-to-speech/${VOICE_ID}/stream` +
-          // 22kHz mono is half the bytes of 44kHz and indistinguishable through
-          // a laptop speaker; optimize_streaming_latency=3 trades a little
-          // prosody for a much earlier first byte.
-          `?output_format=mp3_22050_32&optimize_streaming_latency=3`,
-        {
-          method: 'POST',
-          headers: { 'xi-api-key': key, 'content-type': 'application/json' },
-          body: JSON.stringify({
-            text,
-            // Flash is the low-latency model — a conversation needs speed more
-            // than it needs the last few percent of quality.
-            model_id: 'eleven_flash_v2_5',
-            voice_settings: {
-              stability: 0.4,
-              similarity_boost: 0.75,
-              speed: 1.05,
-            },
-          }),
-        },
-      )
+      let upstream = await speechRequest(ttsModel, text, key)
+      if (!upstream.ok && ttsModel !== FLASH && upstream.status !== 401 && upstream.status !== 429) {
+        // The model was refused (not on this plan, or not for this voice).
+        // 401 and 429 are about the key and the quota, which no other model fixes.
+        const why = (await upstream.text()).slice(0, 300)
+        console.warn(`[jarvis] ${ttsModel} refused (${upstream.status}) — using ${FLASH}. ${why}`)
+        ttsModel = FLASH
+        upstream = await speechRequest(ttsModel, text, key)
+      }
       if (!upstream.ok) {
         res.writeHead(upstream.status, cors)
         return res.end(await upstream.text())
@@ -1015,6 +1088,10 @@ const handleRequest = async (req, res) => {
             : 'webm'
       const form = new FormData()
       form.append('model_id', 'scribe_v1')
+      // Told the language rather than left to guess: a two-word utterance is
+      // too short to identify reliably, and a wrong guess comes back as
+      // confident nonsense in another script.
+      if (UZBEK) form.append('language_code', 'uz')
       form.append(
         'file',
         new Blob([Buffer.concat(chunks)], { type }),
