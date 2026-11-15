@@ -123,6 +123,25 @@ Noutbukning o'zida ham shu rejimda ochish uchun terminaldagi
 
 ---
 
+## Ovoz va til
+
+- JARVIS har qanday savolga **oʻzbek tilida** (lotin yozuvida) javob beradi va
+  oʻzbekcha nutqni tinglaydi. Ingliz tiliga qaytarish: `.env.local` fayliga
+  `JARVIS_LANGUAGE=en` deb yozing.
+- Ovoz — ElevenLabs'dagi `RaNVfTYq3HYeFPLng6XN` ovozi. Boshqasini qoʻyish:
+  `.env.local` ga `JARVIS_VOICE_ID=...`.
+- Birinchi ishga tushirishda dastur **ElevenLabs API kalitini** soʻraydi va uni
+  `.env.local` fayliga saqlaydi. Bu fayl faqat sizning kompyuteringizda turadi
+  va GitHub'ga yuklanmaydi. Kalitni almashtirish uchun shu fayldagi
+  `ELEVENLABS_API_KEY=` qatorini tahrirlang.
+- Kalitsiz JARVIS brauzerning oʻz ovozida gapiradi — unda oʻzbekcha talaffuz
+  yoʻq, shuning uchun kalit tavsiya etiladi.
+- Oʻzbekcha talaffuz uchun avval `eleven_v3` modeli sinab koʻriladi; hisobingizda
+  u ishlamasa, avtomatik `eleven_flash_v2_5` ga oʻtadi (talaffuzda aksent
+  boʻlishi mumkin). Modelni `JARVIS_TTS_MODEL` bilan tanlash mumkin.
+
+---
+
 ## Buyruqlar
 
 | Buyruq | Vazifasi |

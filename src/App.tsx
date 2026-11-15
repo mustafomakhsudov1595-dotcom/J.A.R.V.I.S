@@ -30,7 +30,7 @@ import {
   type Msg,
 } from './lib/brain'
 import { startAnalyser, micLevel } from './lib/audio'
-import { probeCapabilities } from './lib/capabilities'
+import { isUzbek, probeCapabilities } from './lib/capabilities'
 import { env } from './config'
 
 /**
@@ -598,7 +598,11 @@ export default function App() {
         silence()
         const demo = createSpeaker()
         speaker.current = demo
-        demo.say(`Voice set to ${name.replace(/\(.*?\)/g, '').trim()}. At your service, sir.`)
+        demo.say(
+          isUzbek()
+            ? 'Ovoz almashtirildi. Xizmatingizdaman, janob.'
+            : `Voice set to ${name.replace(/\(.*?\)/g, '').trim()}. At your service, sir.`,
+        )
         void demo.end()
         return
       }
@@ -640,7 +644,11 @@ export default function App() {
         silence()
         const t = createSpeaker()
         speaker.current = t
-        t.say('Audio test. If you can hear this, speech output is working, sir.')
+        t.say(
+          isUzbek()
+            ? 'Ovoz sinovi. Agar buni eshitayotgan boʻlsangiz, ovoz ishlayapti, janob.'
+            : 'Audio test. If you can hear this, speech output is working, sir.',
+        )
         void t.end().then(() => {
           const d = (window as unknown as Record<string, Record<string, unknown>>).__tts
           console.info('[jarvis] audio test →', d)

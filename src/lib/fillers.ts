@@ -17,6 +17,8 @@
  *     so it goes at the end, and only sometimes.
  */
 
+import { isUzbek } from './capabilities'
+
 /** Said as soon as the first tool fires, before any answer exists. */
 const WORKING = [
   'Working on it, sir.',
@@ -63,9 +65,47 @@ function makePicker(pool: string[]) {
   }
 }
 
-export const working = makePicker(WORKING)
-export const acknowledge = makePicker(ACKNOWLEDGE)
-export const attention = makePicker(ATTENTION)
+/**
+ * The same three pools in Uzbek. Not translations of the lines above so much
+ * as the same register: short, deferential, no eagerness. Used whenever the
+ * bridge reports JARVIS_LANGUAGE=uz, so the canned lines match the language
+ * of the answer that follows them.
+ */
+const WORKING_UZ = [
+  'Bajaryapman, janob.',
+  'Qidiryapman.',
+  'Tekshiryapman.',
+  'Maʼlumot olinmoqda.',
+  'Solishtiryapman.',
+  'Bir lahza.',
+  'Ish boshlandi.',
+]
+const ACKNOWLEDGE_UZ = [
+  'Xoʻp boʻladi, janob.',
+  'Juda yaxshi, janob.',
+  'Albatta.',
+  'Tushunarli.',
+  'Bajarildi deb hisoblang.',
+]
+const ATTENTION_UZ = [
+  'Labbay, janob?',
+  'Janob?',
+  'Xizmatingizdaman, janob.',
+  'Eshitaman.',
+  'Tayyorman, janob.',
+]
+
+/** One picker per language, chosen at call time: the language arrives from the
+ *  bridge during boot, after this module has loaded. */
+function bilingual(en: string[], uz: string[]) {
+  const pickEn = makePicker(en)
+  const pickUz = makePicker(uz)
+  return () => (isUzbek() ? pickUz() : pickEn())
+}
+
+export const working = bilingual(WORKING, WORKING_UZ)
+export const acknowledge = bilingual(ACKNOWLEDGE, ACKNOWLEDGE_UZ)
+export const attention = bilingual(ATTENTION, ATTENTION_UZ)
 
 /**
  * Naming the task is warmer than a generic acknowledgement and shows the
@@ -188,6 +228,8 @@ function split(toolName: string): { server: string; tool: string } {
 
 /** A phrase suited to the tool that just fired. */
 export function forTool(toolName: string): string {
+  // The per-tool lines are English; in Uzbek the neutral pool covers them all.
+  if (isUzbek()) return working()
   const { server, tool } = split(toolName)
   for (const r of pickers) {
     const hit =
