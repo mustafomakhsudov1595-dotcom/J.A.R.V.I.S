@@ -71,7 +71,16 @@ export default defineConfig({
     // or set JARVIS_ALLOWED_ORIGINS to match.
     port,
     ...(phoneKey
-      ? { host: true, strictPort: true, proxy: { '/bridge': bridgeProxy(phoneKey) } }
+      ? {
+          host: true,
+          strictPort: true,
+          // Vite refuses requests addressed to any hostname it does not know,
+          // which is what stops DNS rebinding. The public link (`npm run
+          // public`) arrives under a trycloudflare.com name, so that one
+          // suffix is allowed — and the access key still gates every request.
+          allowedHosts: ['.trycloudflare.com'],
+          proxy: { '/bridge': bridgeProxy(phoneKey) },
+        }
       : {}),
   },
   optimizeDeps: {

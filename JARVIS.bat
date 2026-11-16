@@ -45,12 +45,32 @@ if not exist node_modules (
 echo.
 echo  [1] Faqat shu noutbukda
 echo  [2] Noutbuk + telefon ^(bitta Wi-Fi, QR kod^)
+echo  [3] Noutbuk + telefon ^(internet orqali, istalgan tarmoqda^)
 echo.
-choice /c 12 /n /m "  Tanlang (1 yoki 2): "
-if errorlevel 2 (
-  call npm run phone
-) else (
-  start "" http://localhost:5173
-  call npm start
+choice /c 123 /n /m "  Tanlang (1, 2 yoki 3): "
+if errorlevel 3 goto publicmode
+if errorlevel 2 goto phonemode
+start "" http://localhost:5173
+call npm start
+goto done
+
+:phonemode
+call npm run phone
+goto done
+
+:publicmode
+where cloudflared >nul 2>nul
+if errorlevel 1 (
+  echo.
+  echo  Internet tunnel dasturi ^(cloudflared^) o'rnatilmoqda...
+  winget install --id Cloudflare.cloudflared -e --accept-package-agreements --accept-source-agreements
+  echo.
+  echo  O'rnatib bo'lindi. Oynani yopib, JARVIS.bat ni qaytadan ishga tushiring
+  echo  va yana 3 ni tanlang.
+  pause
+  exit /b 0
 )
+call npm run public
+
+:done
 pause
