@@ -49,7 +49,10 @@ function vendorWasm() {
 const writes = process.argv.includes('--writes')
 // --phone serves the face over HTTPS on the local network, behind an access
 // key, so a phone on the same Wi-Fi can open it. See scripts/phone-gate.mjs.
-const phone = process.argv.includes('--phone')
+// --public does the same and also opens a Cloudflare quick tunnel, so the phone
+// reaches it from any network, not only the laptop's own Wi-Fi.
+const publicLink = process.argv.includes('--public')
+const phone = process.argv.includes('--phone') || publicLink
 
 // A dim label per process, so the interleaved logs stay readable.
 const paint = (tag, colour) => (line) =>
@@ -172,6 +175,52 @@ if (phone) {
   faceEnv.JARVIS_PHONE_KEY = phoneKey
 }
 
+/**
+ * A public address for the phone: a Cloudflare quick tunnel.
+ *
+ * `cloudflared` dials out to Cloudflare and Cloudflare hands back a random
+ * https://….trycloudflare.com name that forwards to this laptop — no router
+ * settings, no account. It reaches past the cases where the Wi-Fi keeps
+ * devices apart. The cost is that the link is on the internet, so the access
+ * key in it is the only lock, and anyone who has the whole link has the agent.
+ * The name changes on every start.
+ */
+async function openTunnel(facePort, key) {
+  const tunnel = spawn(
+    'cloudflared',
+    ['tunnel', '--no-autoupdate', '--no-tls-verify', '--url', `https://localhost:${facePort}`],
+    { shell: false },
+  )
+  children.push(tunnel)
+  let shown = false
+  const seen = (data) => {
+    const m = /https:\/\/[a-z0-9-]+\.trycloudflare\.com/.exec(data.toString())
+    if (!m || shown) return
+    shown = true
+    const url = `${m[0]}/?key=${key}`
+    console.log('\n\x1b[1mInternet orqali / Public link\x1b[0m')
+    console.log(`\n  Telefonda ochish uchun (open on your phone, any network):\n    ${url}\n`)
+    import('qrcode-terminal')
+      .then(({ default: qrcode }) =>
+        qrcode.generate(url, { small: true }, (code) => console.log(code.replace(/^/gm, '    '))),
+      )
+      .catch(() => {})
+  }
+  tunnel.stdout.on('data', seen)
+  tunnel.stderr.on('data', seen)
+  tunnel.on('error', (err) => {
+    console.log(
+      err.code === 'ENOENT'
+        ? '\n  cloudflared topilmadi. Oʻrnating: winget install Cloudflare.cloudflared\n' +
+            '  (macOS: brew install cloudflared), soʻng qayta ishga tushiring.\n'
+        : `\n  Tunnel ochilmadi: ${err.message}\n`,
+    )
+  })
+  tunnel.on('exit', (code) => {
+    if (!stopping) console.log(`\n  Tunnel yopildi (${code}); havola endi ishlamaydi.\n`)
+  })
+}
+
 vendorWasm()
 
 console.log('\nJ.A.R.V.I.S. starting — the brain and the face.\n')
@@ -201,6 +250,7 @@ if (phone) {
       /* no QR package: the link above is enough */
     }
   }
+  if (publicLink) await openTunnel(facePort, phoneKey)
   console.log(
     '\n  The browser will warn about the certificate once — it is this laptop\'s\n' +
       '  own self-signed one. Choose Advanced → Proceed. The link holds the access\n' +

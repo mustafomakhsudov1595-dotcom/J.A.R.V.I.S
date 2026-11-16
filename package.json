@@ -12,6 +12,7 @@
     "start": "node scripts/start.mjs",
     "phone": "node scripts/start.mjs --phone",
     "phone:writes": "node scripts/start.mjs --phone --writes",
+    "public": "node scripts/start.mjs --public",
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",

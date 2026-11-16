@@ -24,10 +24,17 @@ fi
 echo
 echo "  [1] Faqat shu noutbukda"
 echo "  [2] Noutbuk + telefon (bitta Wi-Fi, QR kod)"
+echo "  [3] Noutbuk + telefon (internet orqali, istalgan tarmoqda)"
 echo
-read -r -p "  Tanlang (1 yoki 2): " mode
-if [ "$mode" = "2" ]; then
-  exec npm run phone
-else
-  exec npm start
-fi
+read -r -p "  Tanlang (1, 2 yoki 3): " mode
+case "$mode" in
+  2) exec npm run phone ;;
+  3)
+    if ! command -v cloudflared >/dev/null 2>&1; then
+      echo "cloudflared kerak. macOS: brew install cloudflared"
+      echo "Linux: https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/"
+      exit 1
+    fi
+    exec npm run public ;;
+  *) exec npm start ;;
+esac

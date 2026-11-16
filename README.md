@@ -108,6 +108,18 @@ Noutbukning o'zida ham shu rejimda ochish uchun terminaldagi
 - Sahifa ochilmasa: ikkala qurilma bitta tarmoqdami, noutbukning xavfsizlik
   devori (firewall) 5173-portni to'sib qo'ymaganmi — tekshiring.
 
+### Internet orqali (istalgan tarmoqda)
+
+Ofis yoki mobil tarmoqda telefon noutbukni koʻrmasa, `JARVIS.bat` da **3** ni
+tanlang (yoki `npm run public`). Dastur Cloudflare tunnelini ochadi
+(`cloudflared`, birinchi marta oʻzi oʻrnatiladi) va terminalda
+`https://....trycloudflare.com/?key=...` havolasi va QR kod chiqadi. Telefon
+istalgan internetdan ochadi. Havola har ishga tushganda yangilanadi.
+
+> Bu havola internetda. Unda kalit bor: kimda toʻliq havola boʻlsa, oʻsha
+> sizning JARVIS'ingizdan foydalana oladi. Hech kimga yubormang, ishlatib
+> boʻlgach oynani yoping.
+
 ### Xavfsizlik
 
 - Havoladagi **kalit — parol**. Kimda bu havola bo'lsa, o'sha sizning
